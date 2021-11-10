@@ -1,0 +1,5 @@
+id: splunk_field_value
+name: splunk field value
+description: splunk search field value
+loader: index.js
+type: macros
