@@ -3,7 +3,7 @@ const { PluginLoaderBase } = require('plugnplay')
 module.exports = class extends PluginLoaderBase {
   exportSync () {
     return {
-      bnf: 'MACRO_splunk_field_value ::= <log_stream_selector> <OWSP> "| search" <OWSP> <label> "=" <quoted_str> <OWSP> ("OR" <OWSP> <label> "=" <quoted_str> )',
+      bnf: 'MACRO_splunk_field_value ::= <log_stream_selector> <OWSP> "| search" <OWSP> <label> "=" <quoted_str> <OWSP> ["OR" <OWSP> <label> "=" <quoted_str> ]',
       /**
       *
       * @param token {Token}
