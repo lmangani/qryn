@@ -11,7 +11,8 @@ module.exports = class extends PluginLoaderBase {
       */
       stringify: (token) => {
         console.log(`Query: ${token.Children('log_stream_selector')[0].value} | json | ${token.Children('label')[1].value}=~${token.Children('quoted_str')[1].value}`)
-        console.log(`Label array length ${token.Children.length}`)
+        console.log(`Label array length ${token.Children('label').length}`)
+        console.log(`Label array ${token.Children('label')}`)
         if (token.Children('label').length >= 1) {
           return `${token.Children('log_stream_selector')[0].value} | json | ${token.Children('label')[1].value}=~${token.Children('quoted_str')[1].value}`
         } else if (token.Children('label').length > 2) {
