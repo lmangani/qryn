@@ -20,7 +20,7 @@ parameter ::= <label> <OWSP> "=" <OWSP> <quoted_str> | <quoted_str>
 label_filter_pipeline ::= "|" <OWSP> <complex_label_filter_expression>
 complex_label_filter_expression ::= <label_filter_expression> | <bracketed_label_filter_expression> | (<label_filter_expression> | <bracketed_label_filter_expression>) *(<OWSP> <and_or> <WSP> <OWSP> <label_filter_expression> | <OWSP> <and_or> <WSP> <OWSP> <bracketed_label_filter_expression>)
 bracketed_label_filter_expression ::= "(" <OWSP> <complex_label_filter_expression> <OWSP> ")"
-and_or ::= "and" | "or"
+and_or ::= "and" | "or" | "AND" | "OR"
 label_filter_expression ::= <string_label_filter_expression> | <number_label_filter_expression>
 
 string_label_filter_expression ::= <label> <OWSP> <operator> <OWSP> <quoted_str>
@@ -62,4 +62,3 @@ by_without_unwrap ::= "by" | "without"
 
 compared_agg_statement ::= (<aggregation_operator> | <log_range_aggregation> | <unwrap_function>) <OWSP> <compared_agg_statement_cmp>
 compared_agg_statement_cmp ::= <number_operator> <OWSP> <number_value>
-
