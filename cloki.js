@@ -28,7 +28,7 @@ const logger = require('./lib/logger')
 /* Alerting */
 const { startAlerting, stop } = require('./lib/db/alerting')
 const yaml = require('yaml')
-const { CLokiError } = require('./lib/handlers/errors')
+const { CLokiError, CLokiUnauthorized } = require('./lib/handlers/errors')
 
 /* Fingerprinting */
 this.fingerPrint = UTILS.fingerPrint
@@ -197,7 +197,7 @@ if (this.http_user && this.http_password) {
     if (username === this.http_user && password === this.http_password) {
       done()
     } else {
-      done(new Error('Unauthorized!: Wrong username/password.'))
+      done( new CLokiUnauthorized('Unauthorized!: Wrong username/password.'))
     }
   }
   const validate = checkAuth.bind(this)
