@@ -331,6 +331,11 @@ const handlerTempoPush = require('./lib/handlers/tempo_push.js').bind(this)
 fastify.post('/tempo/api/push', handlerTempoPush)
 fastify.post('/api/v2/spans', handlerTempoPush)
 
+/* XRay Write Handler */
+this.xray_tagtrace = process.env.TEMPO_TAGTRACE || false
+const handlerXrayPush = require('./lib/handlers/xray_push.js').bind(this)
+fastify.post('/xray/api/push', handlerTempoPush)
+
 /* Tempo Traces Query Handler */
 this.tempo_span = process.env.TEMPO_SPAN || 24
 const handlerTempoTraces = require('./lib/handlers/tempo_traces.js').bind(this)
