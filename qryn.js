@@ -332,9 +332,11 @@ fastify.post('/tempo/api/push', handlerTempoPush)
 fastify.post('/api/v2/spans', handlerTempoPush)
 
 /* XRay Write Handler */
+/* https://docs.aws.amazon.com/xray/latest/api/API_PutTraceSegments.html#xray-PutTraceSegments-request-TraceSegmentDocuments */
 this.xray_tagtrace = process.env.TEMPO_TAGTRACE || false
 const handlerXrayPush = require('./lib/handlers/xray_push.js').bind(this)
-fastify.post('/xray/api/push', handlerTempoPush)
+fastify.post('/xray/api/push', handlerXrayPush)
+fastify.post('/TraceSegments', handlerXrayPush)
 
 /* Tempo Traces Query Handler */
 this.tempo_span = process.env.TEMPO_SPAN || 24
