@@ -32,9 +32,9 @@ class Plugin {
    */
   async process () {
     // Parse logql query from toNodeGraph() and use to resolve a stream of events
-    try { const match = this.query.match(/^toNodeGraph\((.+)\)$/) } catch(e){ console.log(e) }
+    try { const match = this.query.match(/^toNodeGraph\((.+)\)/) } catch(e){ console.log(e) }
     // Parse logfmt parameters from params() and use them to resolve the node/edge mapping from labels
-    try { const params = logfmt.parse( this.query.match(/params\((.+)\)$/)[1] || {} } catch(e){ const params = {} }
+    try { const params = logfmt.parse( this.query.match(/params\((.+)\)/) ) || {} } catch(e){ const params = {} }
     const response = await this.API.logql(match[1], this.start, this.end, this.limit)
     let config = {
       "arc__1":{
