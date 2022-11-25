@@ -71,7 +71,8 @@
     "yaml": "^1.10.2",
     "@qxip/promql2logql": "^1.0.21",
     "node-gzip": "^1.1.2",
-    "csv-writer": "^1.6.0"
+    "csv-writer": "^1.6.0",
+    "@fastify/compress": "^6.2.0"
   },
   "devDependencies": {
     "casual": "^1.6.2",
