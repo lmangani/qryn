@@ -91,7 +91,6 @@ let fastify = require('fastify')({
 
 fastify.register(require('fastify-url-data'))
 fastify.register(require('@fastify/websocket'))
-fastify.register(require('@fastify/compress'))
 // fastify.register(require('@fastify/formbody'))
 
 /* Fastify local metrics exporter */

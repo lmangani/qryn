@@ -303,13 +303,17 @@ async function getContentBody (req) {
   if (req._rawBody) {
     return req._rawBody
   }
-  let body = ''
+  let body = []
   req.raw.on('data', data => {
-    body += data.toString()
+    body.push(data)
   })
   await new Promise(resolve => req.raw.once('end', resolve))
-  req._rawBody = body
-  return body
+  body = Buffer.concat(body)
+  if (req.headers['content-encoding'] === 'gzip') {
+    body = await gzip.ungzip(body)
+  }
+  req._rawBody = body.toString()
+  return req._rawBody
 }
 
 module.exports = {
