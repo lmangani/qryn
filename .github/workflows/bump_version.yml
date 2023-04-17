@@ -10,13 +10,14 @@ on:
       - '**.yaml'
 
 jobs:
-  bump-version:
-    name: 'Bump Version on master & Publish'
+  bump_version:
+    name: 'Bump, Build & Publish npm package'
     runs-on: ubuntu-latest
-
+    outputs:
+      newTag: ${{ steps.version-bump.outputs.newTag }}
     steps:
       - name: 'Checkout source code'
-        uses: 'actions/checkout@v2'
+        uses: 'actions/checkout@v3'
         with:
           ref: ${{ github.ref }}
       - name: 'cat package.json'
@@ -28,12 +29,11 @@ jobs:
           tag-prefix: 'v'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: 'cat package.json'
-        run: cat ./package.json
       - name: 'Output Step'
+        id: output-env
         env:
           NEW_TAG: ${{ steps.version-bump.outputs.newTag }}
-        run: echo "new tag $NEW_TAG"
+        run: echo "::set-output name=release_number::$NEW_TAG"
       - name: Check NPM secret presence
         id: checksecrets
         shell: bash
@@ -45,10 +45,10 @@ jobs:
           fi
         env:
           SECRET: ${{ secrets.NPM_TOKEN }}
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v3
         if: ${{ steps.checksecrets.outputs.secretspresent }}
         with:
-          node-version: 14
+          node-version: 16
       - name: Publish to NPM
         if: ${{ steps.checksecrets.outputs.secretspresent }}
         run: |
@@ -58,6 +58,13 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       
+      
+  publish:
+    name: Build & Publish Multi-Arch Containers
+    needs: bump_version
+    if: (needs.bump_version.result == 'success') && (needs.bump_version.outputs.newTag != '')
+    runs-on: ubuntu-latest
+    steps:
       - name: Check Docker secret presence
         id: checkdocker
         shell: bash
@@ -93,9 +100,9 @@ jobs:
           push: true
           tags: |
             qxip/qryn:latest
-            qxip/qryn:${{ steps.version-bump.outputs.newTag }}
+            qxip/qryn:${{ needs.bump_version.outputs.newTag }}
             qxip/cloki:latest
-            qxip/cloki:${{ steps.version-bump.outputs.newTag }}
+            qxip/cloki:${{ needs.bump_version.outputs.newTag }}
             
       - name: Log in to the GHCR registry
         uses: docker/login-action@v2.0.0
@@ -111,4 +118,4 @@ jobs:
           push: true
           tags: |
              ghcr.io/metrico/qryn:latest
-             ghcr.io/metrico/qryn:${{ steps.version-bump.outputs.newTag }}
+             ghcr.io/metrico/qryn:${{ needs.bump_version.outputs.newTag }}
