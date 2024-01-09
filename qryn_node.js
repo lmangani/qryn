@@ -434,11 +434,21 @@ let fastify = require('fastify')({
 
   /* QRYN-VIEW Optional Handler */
   if (fs.existsSync(path.join(__dirname, 'view/index.html'))) {
+    const basePath = process.env.VIEW_BASE || '/'
     fastify.register(require('@fastify/static'), {
       root: path.join(__dirname, 'view'),
-      prefix: '/'
+      prefix: basePath
     })
+    const addBase = (path) => basePath.replace(/\/+$/, '') + '/' + path
+    const idx = fs.readFileSync('view/index.html', 'utf8')
+    for (const fakePath of ['plugins', 'users', 'datasources', 'datasources/:ds'].map(addBase)) {
+      fastify.get(fakePath,
+        (req, reply) =>
+          reply.code(200).header('Content-Type', 'text/html').send(idx))
+    }
   }
+
+  require('./pyroscope/pyroscope').init(fastify)
 
   // Run API Service
   fastify.listen(

@@ -174,6 +174,21 @@ const pql = async (query, wasmCall, getData) => {
     ctx && ctx.destroy()
   }
 }
+
+/**
+ *
+ * @param pprofs
+ */
+module.exports.pyroscopeSelectMergeStacktraces = (pprofs) => {
+  const reqId = newId()
+  const _wasm = getWasm()
+  const ctx = new Ctx(reqId, _wasm)
+  ctx.create()
+  ctx.write(pprofs)
+  const code = _wasm.exports.pyroscopeSelectMergeStacktraces(reqId)
+  const res = ctx.read()
+  return JSON.parse(res)
+}
 class Ctx {
   constructor (id, wasm) {
     this.wasm = wasm

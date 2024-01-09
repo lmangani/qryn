@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+	"wasm_parts/profiling"
+	"wasm_parts/shared"
 	sql "wasm_parts/sql_select"
 	parser2 "wasm_parts/traceql/parser"
 	traceql_transpiler "wasm_parts/traceql/transpiler"
@@ -176,6 +178,38 @@ func pqlSeries(id uint32) uint32 {
 		return 1
 	}
 	data[id].response = []byte(getmatchersJSON(query))
+	return 0
+}
+
+//export pyroscopeSelectMergeStacktraces
+func pyroscopeSelectMergeStacktraces(id uint32) uint32 {
+	ctx := data[id]
+	fg, err := profiling.CreateFlameGraph(ctx.request)
+	if err != nil {
+		data[id].response = wrapError(err)
+		return 1
+	}
+	for i := range fg.Names {
+		fg.Names[i] = strconv.Quote(fg.Names[i])
+	}
+	strLevels := make([]string, len(fg.Levels))
+	for i, lvls := range fg.Levels {
+		strLevels[i] = "["
+		for j, lvl := range lvls {
+			if j != 0 {
+				strLevels[i] += ","
+			}
+			strLevels[i] += strconv.FormatInt(lvl, 10)
+		}
+		strLevels[i] += "]"
+	}
+
+	strResponse := fmt.Sprintf(`{"names": [%s], "levels": [%s], "total": %d, "maxSelf": %d}`,
+		strings.Join(fg.Names, ","),
+		strings.Join(strLevels, ","),
+		fg.Total,
+		fg.MaxSelf)
+	ctx.response = []byte(strResponse)
 	return 0
 }
 
@@ -430,13 +464,8 @@ type BinaryReader struct {
 }
 
 func (b *BinaryReader) ReadULeb32() uint32 {
-	var res uint32
-	i := uint32(0)
-	for ; b.buffer[b.i+i]&0x80 == 0x80; i++ {
-		res |= uint32(b.buffer[b.i+i]&0x7f) << (i * 7)
-	}
-	res |= uint32(b.buffer[b.i+i]&0x7f) << (i * 7)
-	b.i += i + 1
+	res, i := shared.ReadULeb32(b.buffer[b.i:])
+	b.i += i
 	return res
 }
 
