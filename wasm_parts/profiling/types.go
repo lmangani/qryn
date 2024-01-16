@@ -15,6 +15,7 @@ type tree struct {
 
 type treeNode struct {
 	nameIdx  int32
+	prepend  int64
 	total    int64
 	self     int64
 	children []*treeNode

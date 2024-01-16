@@ -9,8 +9,12 @@ const compiler = require('../parser/bnf')
 
 const profileTypesHandler = async (req, res) => {
   const _res = new messages.ProfileTypesResponse()
-  const fromTimeSec = req.body ? parseInt(req.body.getStart()) / 1000 : (Date.now() - 1000 * 60 * 60 * 48) / 1000
-  const toTimeSec = req.body ? parseInt(req.body.getEnd()) / 1000 : Date.now() / 1000
+  const fromTimeSec = req.body && req.body.getStart
+    ? parseInt(req.body.getStart()) / 1000
+    : (Date.now() - 1000 * 60 * 60 * 48) / 1000
+  const toTimeSec = req.body && req.body.getEnd
+    ? parseInt(req.body.getEnd()) / 1000
+    : Date.now() / 1000
   const profileTypes = await clickhouse.rawRequest(`SELECT DISTINCT type_id, sample_type_unit 
 FROM profiles_series ARRAY JOIN sample_types_units as sample_type_unit
 WHERE date >= toDate(FROM_UNIXTIME(${Math.floor(fromTimeSec)})) AND date <= toDate(FROM_UNIXTIME(${Math.floor(toTimeSec)})) FORMAT JSON`,
@@ -26,27 +30,33 @@ WHERE date >= toDate(FROM_UNIXTIME(${Math.floor(fromTimeSec)})) AND date <= toDa
     pt.setPeriodUnit(periodUnit)
     return pt
   }))
-  return res.code(200).send(_res.serializeBinary())
+  return res.code(200).send(Buffer.from(_res.serializeBinary()))
 }
 
 const labelNames = async (req, res) => {
-  const fromTimeSec = req.body ? parseInt(req.body.getStart()) / 1000 : (Date.now() - 1000 * 60 * 60 * 48) / 1000
-  const toTimeSec = req.body ? parseInt(req.body.getEnd()) / 1000 : Date.now() / 1000
+  const fromTimeSec = req.body && req.body.getStart
+    ? parseInt(req.body.getStart()) / 1000
+    : (Date.now() - 1000 * 60 * 60 * 48) / 1000
+  const toTimeSec = req.body && req.body.getEnd
+    ? parseInt(req.body.getEnd()) / 1000
+    : Date.now() / 1000
   const labelNames = await clickhouse.rawRequest(`SELECT DISTINCT key 
 FROM profiles_series_keys
 WHERE date >= toDate(FROM_UNIXTIME(${Math.floor(fromTimeSec)})) AND date <= toDate(FROM_UNIXTIME(${Math.floor(toTimeSec)})) FORMAT JSON`,
   null, DATABASE_NAME())
   const resp = new types.LabelNamesResponse()
   resp.setNamesList(labelNames.data.data.map(label => label.key))
-  return res.code(200).send(resp.serializeBinary())
+  return res.code(200).send(Buffer.from(resp.serializeBinary()))
 }
 
 const labelValues = async (req, res) => {
-  const name = req.body ? req.body.getName() : ''
-  const fromTimeSec = req.body && req.body.getStart()
+  const name = req.body && req.body.getName
+    ? req.body.getName()
+    : ''
+  const fromTimeSec = req.body && req.body.getStart && req.body.getStart()
     ? parseInt(req.body.getStart()) / 1000
     : (Date.now() - 1000 * 60 * 60 * 48) / 1000
-  const toTimeSec = req.body && req.body.getEnd()
+  const toTimeSec = req.body && req.body.getEnd && req.body.getEnd()
     ? parseInt(req.body.getEnd()) / 1000
     : Date.now() / 1000
   if (!name) {
@@ -59,7 +69,7 @@ date >= toDate(FROM_UNIXTIME(${Math.floor(fromTimeSec)})) AND
 date <= toDate(FROM_UNIXTIME(${Math.floor(toTimeSec)})) FORMAT JSON`, null, DATABASE_NAME())
   const resp = new types.LabelValuesResponse()
   resp.setNamesList(labelValues.data.data.map(label => label.val))
-  return res.code(200).send(resp.serializeBinary())
+  return res.code(200).send(Buffer.from(resp.serializeBinary()))
 }
 
 const parser = (MsgClass) => {
@@ -85,16 +95,15 @@ const parser = (MsgClass) => {
 }
 
 const selectMergeStacktraces = async (req, res) => {
-  console.log(`selectMergeStacktraces ${req.body}`)
   const typeRe = req.body.getProfileTypeid().match(/^(.+):([^:]+):([^:]+)$/)
   const sel = req.body.getLabelSelector()
   const fromTimeSec = req.body && req.body.getStart()
-    ? parseInt(req.body.getStart()) / 1000
-    : (Date.now() - 1000 * 60 * 60 * 48) / 1000
+    ? Math.floor(parseInt(req.body.getStart()) / 1000)
+    : Math.floor((Date.now() - 1000 * 60 * 60 * 48) / 1000)
   const toTimeSec = req.body && req.body.getEnd()
-    ? parseInt(req.body.getEnd()) / 1000
-    : Date.now() / 1000
-  const query = sel ? compiler.ParseScript(sel).rootToken : null;
+    ? Math.floor(parseInt(req.body.getEnd()) / 1000)
+    : Math.floor(Date.now() / 1000)
+  const query = sel ? compiler.ParseScript(sel).rootToken : null
   const idxSelect = (new Sql.Select())
     .select('fingerprint')
     .from('profiles_series_gin')
@@ -140,7 +149,7 @@ const selectMergeStacktraces = async (req, res) => {
   console.log(`got ${profiles.data.length} bytes in ${Date.now() - start} ms`)
   start = Date.now()
   const _res = profiles.data.length !== 0
-    ? pyroscopeSelectMergeStacktraces(Uint8Array.from(profiles.data))
+    ? await pyroscopeSelectMergeStacktraces(Uint8Array.from(profiles.data))
     : { names: [], total: 0, maxSelf: 0, levels: [] }
   console.log(`processed ${profiles.data.length} bytes in ${Date.now() - start} ms`)
   const resp = new messages.SelectMergeStacktracesResponse()
@@ -154,7 +163,8 @@ const selectMergeStacktraces = async (req, res) => {
     return level
   }))
   resp.setFlamegraph(fg)
-  return res.code(200).send(resp.serializeBinary())
+  const sResp = resp.serializeBinary()
+  return res.code(200).send(Buffer.from(sResp))
   /*
 message SelectMergeStacktracesResponse {
   FlameGraph flamegraph = 1;
@@ -174,7 +184,7 @@ message Level {
 const selectSeries = (req, res) => {
   const resp = new messages.SelectSeriesResponse()
   resp.setSeriesList([])
-  return res.code(200).send(resp.serializeBinary())
+  return res.code(200).send(Buffer.from(resp.serializeBinary()))
 }
 
 module.exports.init = (fastify) => {

@@ -7,33 +7,36 @@ const { gunzipSync } = require('zlib')
 class WasmError extends Error {}
 module.exports.WasmError = WasmError
 
-let counter = 0
+const wasmEnt = gunzipSync(fs.readFileSync(WASM_URL))
 
-const getWasm = (() => {
-  const _Go = Go
-  var go = new _Go();
-  let wasm = null
-  let cnt = 0
-  let run = false
-  async function init () {
-    go = new _Go();
-    run = true
-    const _wasm = await WebAssembly.instantiate(
-      gunzipSync(fs.readFileSync(WASM_URL)), go.importObject)
-    go.run(_wasm.instance)
-    wasm = _wasm.instance
-    cnt = 0
-    run = false
+let counter = 0
+const _Go = Go
+
+const makeInstance = async (global) => {
+  var go = new _Go()
+  const wasm = await WebAssembly.instantiate(wasmEnt, go.importObject)
+  go.run(wasm.instance)
+  if (global) {
+    instance = wasm.instance
   }
-  init()
-  return () => {
-    if (cnt >= 20 && !run) {
-      init()
-    }
-    cnt++
-    return wasm
+  return wasm.instance
+}
+
+let instance = makeInstance(true)
+
+const getWasm = async () => {
+  if (!instance) {
+    const _instance = await makeInstance()
+    instance = makeInstance(true)
+    return _instance
   }
-})()
+  if (instance.then) {
+    return await makeInstance()
+  }
+  const _instance = instance
+  instance = makeInstance(true)
+  return _instance
+}
 
 const newId = () => {
   const id = counter
@@ -51,7 +54,7 @@ const newId = () => {
  * @returns {Promise<string>}
  */
 module.exports.pqlRangeQuery = async (query, startMs, endMs, stepMs, getData) => {
-  const _wasm = getWasm()
+  const _wasm = await getWasm()
   const start = startMs || Date.now() - 300000
   const end = endMs || Date.now()
   const step = stepMs || 15000
@@ -69,14 +72,14 @@ module.exports.pqlRangeQuery = async (query, startMs, endMs, stepMs, getData) =>
  */
 module.exports.pqlInstantQuery = async (query, timeMs, getData) => {
   const time = timeMs || Date.now()
-  const _wasm = getWasm()
+  const _wasm = await getWasm()
   return await pql(query,
     (ctx) => _wasm.exports.pqlInstantQuery(ctx.id, time),
     (matchers) => getData(matchers, time - 300000, time))
 }
 
-module.exports.pqlMatchers = (query) => {
-  const _wasm = getWasm()
+module.exports.pqlMatchers = async (query) => {
+  const _wasm = await getWasm()
   const id = newId()
   const ctx = new Ctx(id, _wasm)
   ctx.create()
@@ -113,14 +116,14 @@ module.exports.pqlMatchers = (query) => {
  *       TracesTable: string,
  *       TracesDistTable: string
  * }}}
- * @returns {String}
+ * @returns {Promise<String>}
  * @constructor
  */
-module.exports.TranspileTraceQL = (request) => {
+module.exports.TranspileTraceQL = async (request) => {
   let _ctx
   try {
     const id = newId()
-    const _wasm = getWasm()
+    const _wasm = await getWasm()
     _ctx = new Ctx(id, _wasm)
     _ctx.create()
     _ctx.write(JSON.stringify(request))
@@ -144,7 +147,7 @@ module.exports.TranspileTraceQL = (request) => {
  */
 const pql = async (query, wasmCall, getData) => {
   const reqId = newId()
-  const _wasm = getWasm()
+  const _wasm = await getWasm()
   const ctx = new Ctx(reqId, _wasm)
   try {
     ctx.create()
@@ -179,9 +182,9 @@ const pql = async (query, wasmCall, getData) => {
  *
  * @param pprofs
  */
-module.exports.pyroscopeSelectMergeStacktraces = (pprofs) => {
+module.exports.pyroscopeSelectMergeStacktraces = async (pprofs) => {
   const reqId = newId()
-  const _wasm = getWasm()
+  const _wasm = await getWasm()
   const ctx = new Ctx(reqId, _wasm)
   ctx.create()
   ctx.write(pprofs)

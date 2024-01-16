@@ -43,7 +43,7 @@ module.exports.series = async (query, fromMs, toMs) => {
   try {
     const fromS = Math.floor(fromMs / 1000)
     const toS = Math.floor(toMs / 1000)
-    const matchers = prometheus.pqlMatchers(query)
+    const matchers = await prometheus.pqlMatchers(query)
     const conds = getMatchersIdxCond(matchers[0])
     const idx = getIdxSubquery(conds, fromMs, toMs)
     const withIdx = new Sql.With('idx', idx, !!clusterName)

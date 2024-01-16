@@ -35,7 +35,7 @@ const search = async (query, limit, from, to) => {
     }
   }
   console.log(JSON.stringify(request))
-  const sql = TranspileTraceQL(request)
+  const sql = await TranspileTraceQL(request)
   const response = await rawRequest(sql + ' FORMAT JSON', null, DATABASE_NAME())
   const traces = response.data.data.map(row => ({
     traceID: row.trace_id,

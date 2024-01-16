@@ -189,27 +189,32 @@ func pyroscopeSelectMergeStacktraces(id uint32) uint32 {
 		data[id].response = wrapError(err)
 		return 1
 	}
+	bld := strings.Builder{}
+	bld.Grow(10 * 1024 * 1024)
+	bld.WriteString(`{"names": [`)
 	for i := range fg.Names {
-		fg.Names[i] = strconv.Quote(fg.Names[i])
+		if i != 0 {
+			bld.WriteString(",")
+		}
+		bld.WriteString(strconv.Quote(fg.Names[i]))
 	}
-	strLevels := make([]string, len(fg.Levels))
+	bld.WriteString(`], "levels": [`)
 	for i, lvls := range fg.Levels {
-		strLevels[i] = "["
+		if i != 0 {
+			bld.WriteString(",")
+		}
+		bld.WriteString("[")
 		for j, lvl := range lvls {
 			if j != 0 {
-				strLevels[i] += ","
+				bld.WriteString(",")
 			}
-			strLevels[i] += strconv.FormatInt(lvl, 10)
+			bld.WriteString(strconv.FormatInt(lvl, 10))
 		}
-		strLevels[i] += "]"
+		bld.WriteString("]")
 	}
+	bld.WriteString(fmt.Sprintf(`], "total": %d, "maxSelf": %d}`, fg.Total, fg.MaxSelf))
 
-	strResponse := fmt.Sprintf(`{"names": [%s], "levels": [%s], "total": %d, "maxSelf": %d}`,
-		strings.Join(fg.Names, ","),
-		strings.Join(strLevels, ","),
-		fg.Total,
-		fg.MaxSelf)
-	ctx.response = []byte(strResponse)
+	ctx.response = []byte(bld.String())
 	return 0
 }
 
