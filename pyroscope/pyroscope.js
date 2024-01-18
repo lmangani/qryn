@@ -6,6 +6,7 @@ const { DATABASE_NAME } = require('../lib/utils')
 const Sql = require('@cloki/clickhouse-sql')
 const { pyroscopeSelectMergeStacktraces } = require('../wasm_parts/main')
 const compiler = require('../parser/bnf')
+const { createFlameGraph, readULeb32 } = require('./pprof')
 
 const profileTypesHandler = async (req, res) => {
   const _res = new messages.ProfileTypesResponse()
@@ -148,8 +149,18 @@ const selectMergeStacktraces = async (req, res) => {
   })
   console.log(`got ${profiles.data.length} bytes in ${Date.now() - start} ms`)
   start = Date.now()
+
+  const binData = Uint8Array.from(profiles.data)
+  let i = 0
+  const binProfiles = []
+  for (; i < profiles.data.length;) {
+    const [size, shift] = readULeb32(binData.slice(i))
+    i += shift
+    binProfiles.push(binData.slice(i, i + size))
+    i += size
+  }
   const _res = profiles.data.length !== 0
-    ? await pyroscopeSelectMergeStacktraces(Uint8Array.from(profiles.data))
+    ? createFlameGraph(binProfiles, `${typeRe[2]}:${typeRe[3]}`)
     : { names: [], total: 0, maxSelf: 0, levels: [] }
   console.log(`processed ${profiles.data.length} bytes in ${Date.now() - start} ms`)
   const resp = new messages.SelectMergeStacktracesResponse()
