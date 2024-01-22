@@ -7,6 +7,7 @@ const Sql = require('@cloki/clickhouse-sql')
 const { pyroscopeSelectMergeStacktraces } = require('../wasm_parts/main')
 const compiler = require('../parser/bnf')
 const { createFlameGraph, readULeb32 } = require('./pprof')
+const pprofBin = require('./pprof-bin/pkg/pprof_bin')
 
 const profileTypesHandler = async (req, res) => {
   const _res = new messages.ProfileTypesResponse()
@@ -95,6 +96,8 @@ const parser = (MsgClass) => {
   }
 }
 
+let ctxIdx = 0
+
 const selectMergeStacktraces = async (req, res) => {
   const typeRe = req.body.getProfileTypeid().match(/^(.+):([^:]+):([^:]+)$/)
   const sel = req.body.getLabelSelector()
@@ -143,53 +146,34 @@ const selectMergeStacktraces = async (req, res) => {
         Sql.Lte('timestamp_ns', new Sql.Raw(Math.floor(toTimeSec) + '000000000')),
         new Sql.In('fingerprint', 'IN', idxSelect)
       ))
-  let start = Date.now()
   const profiles = await clickhouse.rawRequest(sqlReq.toString() + 'FORMAT RowBinary', null, DATABASE_NAME(), {
     responseType: 'arraybuffer'
   })
-  console.log(`got ${profiles.data.length} bytes in ${Date.now() - start} ms`)
-  start = Date.now()
-
   const binData = Uint8Array.from(profiles.data)
-  let i = 0
-  const binProfiles = []
-  for (; i < profiles.data.length;) {
-    const [size, shift] = readULeb32(binData.slice(i))
-    i += shift
-    binProfiles.push(binData.slice(i, i + size))
-    i += size
+  require('./pprof-bin/pkg/pprof_bin').init_panic_hook()
+  const promises = []
+  const _ctxIdx = ++ctxIdx
+  for (let i = 0; i < binData.length;) {
+    const [size, shift] = readULeb32(binData, i)
+    const uarray = Uint8Array.from(profiles.data.slice(i + shift, i + size + shift))
+    i += size + shift
+    promises.push(new Promise((resolve, reject) => setTimeout(() => {
+      try {
+        pprofBin.merge_tree(_ctxIdx, uarray, `${typeRe[2]}:${typeRe[3]}`)
+        resolve()
+      } catch (e) {
+        reject(e)
+      }
+    }, 0)))
   }
-  const _res = profiles.data.length !== 0
-    ? createFlameGraph(binProfiles, `${typeRe[2]}:${typeRe[3]}`)
-    : { names: [], total: 0, maxSelf: 0, levels: [] }
-  console.log(`processed ${profiles.data.length} bytes in ${Date.now() - start} ms`)
-  const resp = new messages.SelectMergeStacktracesResponse()
-  const fg = new messages.FlameGraph()
-  fg.setNamesList(_res.names)
-  fg.setTotal(_res.total)
-  fg.setMaxSelf(_res.maxSelf)
-  fg.setLevelsList(_res.levels.map(l => {
-    const level = new messages.Level()
-    level.setValuesList(l)
-    return level
-  }))
-  resp.setFlamegraph(fg)
-  const sResp = resp.serializeBinary()
+  let sResp = null
+  try {
+    await Promise.all(promises)
+    sResp = pprofBin.export_tree(_ctxIdx)
+  } finally {
+    try { pprofBin.drop_tree(_ctxIdx) } catch (e) { req.log.error(e) }
+  }
   return res.code(200).send(Buffer.from(sResp))
-  /*
-message SelectMergeStacktracesResponse {
-  FlameGraph flamegraph = 1;
-}
-message FlameGraph {
-  repeated string names = 1;
-  repeated Level levels = 2;
-  int64 total = 3;
-  int64 max_self = 4;
-}
-message Level {
-  repeated int64 values = 1;
-}
-   */
 }
 
 const selectSeries = (req, res) => {
@@ -213,45 +197,4 @@ module.exports.init = (fastify) => {
       '*': parser(services.QuerierServiceService[name].requestType)
     })
   }
-// create a grpc server from services.QuerierServiceService
-  /*const server = new grpc.Server();
-  server.addService(services.QuerierServiceService, {
-    ProfileTypes: ,
-    LabelValues: (call, cb) => {
-
-    },
-    // (types.v1.LabelNamesRequest) returns (types.v1.LabelNamesResponse) {}
-    LabelNames: (call, cb) => {
-
-    },
-    // (SeriesRequest) returns (SeriesResponse) {}
-    Series: (call, cb) => {
-
-    },
-    // SelectMergeStacktraces returns matching profiles aggregated in a flamegraph format. It will combine samples from within the same callstack, with each element being grouped by its function name.
-    // (SelectMergeStacktracesRequest) returns (SelectMergeStacktracesResponse) {}
-    SelectMergeStacktraces: (call, cb) => {
-
-    },
-    // SelectMergeSpans returns matching profiles aggregated in a flamegraph format. It will combine samples from within the same callstack, with each element being grouped by its function name.
-    // rpc SelectMergeSpanProfile(SelectMergeSpanProfileRequest) returns (SelectMergeSpanProfileResponse) {}
-    SelectMergeSpanProfile: (call, cb) => {
-
-    },
-    // SelectMergeProfile returns matching profiles aggregated in pprof format. It will contain all information stored (so including filenames and line number, if ingested).
-    // rpc SelectMergeProfile(SelectMergeProfileRequest) returns (google.v1.Profile) {}
-    SelectMergeProfile: (call, cb) => {},
-    // SelectSeries returns a time series for the total sum of the requested profiles.
-    // rpc SelectSeries(SelectSeriesRequest) returns (SelectSeriesResponse) {}
-    SelectSeries: (call, cb) => {
-
-    },
-    // rpc Diff(DiffRequest) returns (DiffResponse) {}
-    Diff: (call, cb) => {
-
-    }
-  })
-  server.bindAsync('0.0.0.0:50051', grpc.ServerCredentials.createInsecure(), () => {
-    server.start()
-  })*/
 }

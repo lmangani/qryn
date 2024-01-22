@@ -6,14 +6,14 @@ const messages = require('./profile_pb')
  * @returns {*}
  * @constructor
  */
-const readULeb32 = (buf) => {
+const readULeb32 = (buf, start) => {
   let res = 0
-  let i = 0
+  let i = start
   for (; (buf[i] & 0x80) === 0x80; i++) {
-    res |= (buf[i] & 0x7f) << (i * 7)
+    res |= (buf[i] & 0x7f) << ((i - start) * 7)
   }
-  res |= (buf[i] & 0x7f) << (i * 7)
-  return [res, i + 1]
+  res |= (buf[i] & 0x7f) << ((i - start) * 7)
+  return [res, i - start + 1]
 }
 
 class TreeNode {
@@ -44,6 +44,11 @@ class Tree {
       a[b.getId()] = prof.getStringTableList()[b.getName()]
       return a
     }, {})
+
+    const locations = prof.getLocationList().reduce((a, b) => {
+      a[b.getId()] = b
+      return a
+    }, {})
     const getFnName = (l) => functions[l.getLineList()[0].getFunctionId()]
 
     const valueIdx = prof.getSampleTypeList().findIndex((type) =>
@@ -61,7 +66,7 @@ class Tree {
     for (const s of prof.getSampleList()) {
       let node = this.root
       for (let i = s.getLocationIdList().length - 1; i >= 0; i--) {
-        const location = prof.getLocationList().find(l => l.getId() === s.getLocationIdList()[i])
+        const location = locations[s.getLocationIdList()[i]]
         const nameIdx = this.namesMap[getFnName(location)]
         let nodeIdx = node.children.findIndex(c => c.nameIdx === nameIdx)
         if (nodeIdx === -1) {
@@ -131,13 +136,19 @@ const bfs = (t) => {
  * @param {string} sampleType
  */
 const createFlameGraph = (pprofBinaries, sampleType) => {
+  console.log(`got ${pprofBinaries.length} profiles`)
   const tree = new Tree()
   tree.sampleType = sampleType
+  let start = Date.now()
   for (const p of pprofBinaries) {
     const prof = messages.Profile.deserializeBinary(p)
     tree.merge(prof)
   }
-  return { levels: bfs(tree), names: tree.names, total: parseInt(tree.root.total), maxSelf: parseInt(tree.maxSelf) }
+  console.log(`ds + merge took ${Date.now() - start} ms`)
+  start = Date.now()
+  const levels = bfs(tree)
+  console.log(`bfs took ${Date.now() - start} ms`)
+  return { levels: levels, names: tree.names, total: parseInt(tree.root.total), maxSelf: parseInt(tree.maxSelf) }
 }
 
 module.exports = { createFlameGraph, readULeb32 }
