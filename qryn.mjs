@@ -12,3 +12,4 @@ if (bun()) {
 } else {
   init()
 }
+
