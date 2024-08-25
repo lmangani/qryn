@@ -183,3 +183,24 @@ jobs:
             dev.qryn.image.title=qryn
             dev.qryn.image.type=bun
             dev.qryn.image.version={{github.event.inputs.TAG_NAME || github.event.release.tag_name }}
+
+  executables:
+    name: 'Build & Publish Experimental Dockerc Executables'
+    runs-on: ubuntu-latest
+    needs: node
+    steps:
+      - name: Setup Dockerc
+        run: |
+          wget https://github.com/NilsIrl/dockerc/releases/latest/download/dockerc_x86-64-gnu -O dockerc
+          chmod +x dockerc
+      - name: Build Dockerc
+        run: |
+          ./dockerc --image docker://qxip/qryn:latest --output qryn_x86-64 --arch amd64
+          ./dockerc --image docker://qxip/qryn:latest --output qryn_aatch64 --arch arm64
+      - name: Upload Assets
+        uses: d1ceward/draft-assets-release-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            qryn_x86-64
+            qryn_aatch64
